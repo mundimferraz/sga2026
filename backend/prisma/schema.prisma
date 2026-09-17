@@ -1,0 +1,134 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Filial {
+  id            String         @id @default(uuid())
+  nome          String
+  cidade        String
+  estado        String
+  ativo         Boolean        @default(true)
+  criadoEm      DateTime       @default(now())
+  departamentos Departamento[]
+  usuarios      Usuario[]
+  senhas        Senha[]
+}
+
+model Departamento {
+  id       String  @id @default(uuid())
+  filialId String
+  nome     String
+  ativo    Boolean @default(true)
+  filial   Filial  @relation(fields: [filialId], references: [id])
+  setores  Setor[]
+}
+
+model Setor {
+  id               String         @id @default(uuid())
+  departamentoId   String
+  nome             String
+  sigla            String
+  atendePreferencial Boolean      @default(true)
+  ativo            Boolean        @default(true)
+  departamento     Departamento   @relation(fields: [departamentoId], references: [id])
+  mesas            Mesa[]
+  usuarios         Usuario[]
+  senhas           Senha[]
+  contadorFila     ContadorFila[]
+}
+
+model Mesa {
+  id                  String       @id @default(uuid())
+  setorId             String
+  numeroIdentificador String
+  ativo               Boolean      @default(true)
+  setor               Setor        @relation(fields: [setorId], references: [id])
+  atendimentos        Atendimento[]
+}
+
+enum PerfilUsuario {
+  ADMIN
+  GERENTE
+  ATENDENTE
+  TRIAGEM
+}
+
+model Usuario {
+  id          String        @id @default(uuid())
+  filialId    String
+  setorId     String?
+  nome        String
+  email       String        @unique
+  senhaHash   String
+  perfil      PerfilUsuario
+  ativo       Boolean       @default(true)
+  criadoEm   DateTime       @default(now())
+  filial      Filial         @relation(fields: [filialId], references: [id])
+  setor       Setor?         @relation(fields: [setorId], references: [id])
+  senhasTriagem Senha[]      @relation("TriagemUsuario")
+  atendimentos Atendimento[]
+}
+
+enum TipoSenha {
+  NORMAL
+  PREFERENCIAL
+}
+
+enum StatusSenha {
+  AGUARDANDO
+  CHAMADA
+  EM_ATENDIMENTO
+  FINALIZADA
+  CANCELADA
+}
+
+model Senha {
+  id                    String      @id @default(uuid())
+  filialId              String
+  setorId               String
+  usuarioTriagemId      String
+  codigo                String
+  numeroSequencial      Int
+  tipo                  TipoSenha   @default(NORMAL)
+  status                StatusSenha @default(AGUARDANDO)
+  criadaEm              DateTime    @default(now())
+  chamadaEm             DateTime?
+  atendimentoInicioEm   DateTime?
+  finalizadaEm          DateTime?
+  tempoEsperaSegundos   Int?
+  tempoAtendimentoSegundos Int?
+  filial                Filial      @relation(fields: [filialId], references: [id])
+  setor                 Setor       @relation(fields: [setorId], references: [id])
+  usuarioTriagem        Usuario     @relation("TriagemUsuario", fields: [usuarioTriagemId], references: [id])
+  atendimento           Atendimento?
+}
+
+model Atendimento {
+  id           String    @id @default(uuid())
+  senhaId      String    @unique
+  atendenteId  String
+  mesaId       String
+  iniciadoEm   DateTime  @default(now())
+  finalizadoEm DateTime?
+  observacao   String?
+  senha        Senha     @relation(fields: [senhaId], references: [id])
+  atendente    Usuario   @relation(fields: [atendenteId], references: [id])
+  mesa         Mesa      @relation(fields: [mesaId], references: [id])
+}
+
+model ContadorFila {
+  id            String   @id @default(uuid())
+  setorId       String
+  data          DateTime @db.Date
+  ultimoNumero  Int      @default(0)
+  setor         Setor    @relation(fields: [setorId], references: [id])
+
+  @@unique([setorId, data])
+}
